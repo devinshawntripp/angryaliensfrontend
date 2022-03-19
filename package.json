@@ -26,9 +26,10 @@
     "web-vitals": "^2.1.4",
     "web3": "^1.7.0"
   },
+  
   "scripts": {
     "start": "react-app-rewired start",
-    "build": "react-app-rewired build",
+    "build": "set \"INLINE_RUNTIME_CHUNK=true\" && react-scripts build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
   },
