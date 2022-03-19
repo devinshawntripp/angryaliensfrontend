@@ -1,0 +1,569 @@
+import { useState, useEffect, useContext } from 'react'
+import { Row, Col, Spinner } from 'react-bootstrap'
+import Countdown from 'react-countdown'
+import Web3 from 'web3'
+import axios from 'axios';
+
+// Import Images + CSS
+import twitter from '../images/socials/twitter.svg'
+import instagram from '../images/socials/instagram.svg'
+import opensea from '../images/socials/opensea.svg'
+import showcase from '../images/showcase.jpg'
+import '../App.css'
+
+// Import Components
+import NFTDetails from './NFTDetails'
+
+// Import ABI + Config
+import OpenPunks from '../abis/AngryAliens.json'
+import AlienLock from '../abis/AngryAliensLock.json'
+import config from '../config.json'
+import { useHorizontalScroll } from "../hooks/useSideScroll";
+import { SocketContext } from '../contexts/socket';
+
+
+export default function Home() {
+	const [openPunks, setOpenPunks] = useState(null)
+	const [alienLock, setAlienLock] = useState(null)
+
+	const [supplyAvailable, setSupplyAvailable] = useState(0)
+
+	const [account, setAccount] = useState(null)
+	
+	const [ownerOf, setOwnerOf] = useState([])
+
+	
+
+	const [isMinting, setIsMinting] = useState(false)
+	const [isError, setIsError] = useState(false)
+
+	const [currentTime, setCurrentTime] = useState(new Date().getTime())
+	const [revealTime, setRevealTime] = useState(0)
+
+	const [counter, setCounter] = useState(7)
+	const [isCycling, setIsCycling] = useState(false)
+
+	const [nftTokenId, setNftTokenId] = useState(0);
+	const [tokensOwned, setTokensOwned] = useState(null);
+
+
+
+	const [lockApproved, setLockApproved] = useState(false);
+	const [lockOwned, setLockOwned] = useState([]);
+
+	const [areanas, setAreanas] = useState([{}]);
+
+	var tokenImageURI = `https://aliensnft.mypinata.cloud/ipfs/Qmcrwm55jLALriGzhGopo6tiZRGWekmdhmg2f41kJV4ag4/`;
+
+	const socket = useContext(SocketContext)
+	useEffect(() => {
+		socket.on('init', data => {
+			const jsonData = [
+				{
+					areanaId: 1,
+					nftTokenIdOne: 0,
+					nftTokenIdTwo: 0
+				}
+			]
+			console.log(jsonData, "Areanas Array")
+
+
+			setAreanas(jsonData);
+
+
+		})
+	}, [])
+
+	useEffect(() => {
+
+		
+
+
+		const handlr = (data) => {
+			console.log(data)
+			setAreanas(data.areanas);
+		}
+
+		socket.on('areanas', handlr)
+	}, [socket])
+
+	const loadBlockchainData = async (_web3, _account, _networkId) => {
+		// Fetch Contract, Data, etc.
+		try {
+			const openPunks = new _web3.eth.Contract(OpenPunks.abi, OpenPunks.networks[_networkId].address)
+			const alienLock = new _web3.eth.Contract(AlienLock.abi, AlienLock.networks[_networkId].address)
+			setOpenPunks(openPunks)
+			setAlienLock(alienLock)
+
+			const maxSupply = await openPunks.methods.maxSupply().call()
+			const totalSupply = await openPunks.methods.totalSupply().call()
+			setSupplyAvailable(maxSupply - totalSupply)
+
+			const allowMintingAfter = await openPunks.methods.allowMintingAfter().call()
+			const timeDeployed = await openPunks.methods.timeDeployed().call()
+			setRevealTime((Number(timeDeployed) + Number(allowMintingAfter)).toString() + '000')
+
+			if (_account) {
+				const ownerOf = await openPunks.methods.walletOfOwner(_account).call()
+				setTokensOwned(await openPunks.methods.walletOfOwner(_account).call())
+				const isApproved = await openPunks.methods.isApprovedForAll(_account, alienLock._address).call()
+				setLockApproved(isApproved);
+				setOwnerOf(ownerOf)
+
+				
+				// console.log(ownerOf)
+			} else {
+				setOwnerOf([])
+			}
+
+			if(alienLock && _account){
+				setLockOwned(await openPunks.methods.walletOfOwner(alienLock._address).call());
+			}
+
+		} catch (error) {
+			setIsError(true)
+			setMessage("Contract not deployed to current network, please change network in MetaMask")
+		}
+	}
+
+	const loadWeb3 = async () => {
+		if (typeof window.ethereum !== 'undefined') {
+			const web3 = new Web3(window.ethereum)
+			setWeb3(web3)
+
+			const accounts = await web3.eth.getAccounts()
+			// console.log(accounts)
+
+			if (accounts.length > 0) {
+				setAccount(accounts[0])
+			} else {
+				setMessage('Please connect with MetaMask')
+			}
+
+			const networkId = await web3.eth.net.getId()
+			setNetworkId(networkId)
+
+			if (networkId !== 5777) {
+				setExplorerURL(config.NETWORKS[networkId].explorerURL)
+				setOpenseaURL(config.NETWORKS[networkId].openseaURL)
+			}
+
+			await loadBlockchainData(web3, accounts[0], networkId)
+
+			window.ethereum.on('accountsChanged', function (accounts) {
+				setAccount(accounts[0])
+				setMessage(null)
+			})
+
+			window.ethereum.on('chainChanged', (chainId) => {
+				// Handle the new chain.
+				// Correctly handling chain changes can be complicated.
+				// We recommend reloading the page unless you have good reason not to.
+				window.location.reload();
+			})
+		}
+	}
+
+	// MetaMask Login/Connect
+
+	const handleChange = (event) => {
+		setNftTokenId(event.target.value)
+	}
+
+	const approveToLockContract = async () => {
+		if(alienLock && account) {
+			await openPunks.methods.setApprovalForAll(alienLock._address, true).send({ from: account, value: 0})
+				.on('confirmation', async () => {
+					const isApproved = await openPunks.methods.isApprovedForAll(account, alienLock._address).call()
+					setLockApproved(isApproved);
+				}).on('error', (error) => {
+					window.alert(error)
+					setIsError(true)
+				})
+		}
+	}
+
+	const transferToContract = async () => {
+		if(alienLock && account) {
+			setIsError(false);
+
+
+
+			await alienLock.methods.transferNftToContract(nftTokenId).send({ from: account, value: 0 })
+				.on('confirmation', async () => {
+					// const maxSupply = await openPunks.methods.maxSupply().call()
+					// const totalSupply = await openPunks.methods.totalSupply().call()
+					// setSupplyAvailable(maxSupply - totalSupply)
+
+					const ownerOf = await openPunks.methods.walletOfOwner(account).call()
+					setOwnerOf(ownerOf)
+					setTokensOwned(await openPunks.methods.walletOfOwner(account).call())
+					if(alienLock && account){
+						setLockOwned(await openPunks.methods.walletOfOwner(alienLock._address).call());
+					}
+				})
+				.on('error', (error) => {
+					window.alert(error)
+					setIsError(true)
+				})
+		}
+
+
+	}
+
+	const handleFight = async (areanaId) => {
+		socket.emit('fight', areanaId)
+	}
+
+	const transferBackFromLock = async () => {
+		if(alienLock && account) {
+			await alienLock.methods.transferBackToOwner(nftTokenId).send({ from: account, value: 0 })
+			.on('confirmation', async () => {
+
+				setTokensOwned(await openPunks.methods.walletOfOwner(account).call())
+				if(alienLock && account){
+					setLockOwned(await openPunks.methods.walletOfOwner(alienLock._address).call());
+				}
+			})
+			.on('error', (error) => {
+				window.alert(error)
+				setIsError(true)
+			})
+		}
+	}
+
+	const setAlienAddressToLock = async () => {
+		if(alienLock && openPunks && account) {
+
+			await alienLock.methods.setAlienAddress(openPunks._address).send({ from: account, value: 0 })
+				.on('confirmation', async () => {
+					// window.alert("THE ADRESS WAS SET")
+				}).on('error', (error) => {
+					window.alert(error)
+					setIsError(true)
+				})
+		}
+	}
+
+	const putNftInAreana = async () => {
+		if(lockOwned && account){
+			if(!lockOwned.includes(nftTokenId.toString())){
+				// console.log(lockOwned)
+				// console.log(nftTokenId)
+				window.alert("Nft is not in the lock contract")
+			} else {
+				const data = {areanaId: 1, tokenId: nftTokenId}
+				socket.emit('sendNftToAreana', (data))
+			}
+	
+		}
+		
+
+	}
+
+	
+
+	const mintNFTHandler = async () => {
+		if (revealTime > new Date().getTime()) {
+			window.alert('Minting is not live yet!')
+			return
+		}
+
+		if (ownerOf.length > 10) {
+			window.alert('You\'ve already minted!')
+			return
+		}
+
+		// Mint NFT
+		if (openPunks && account) {
+			setIsMinting(true)
+			setIsError(false)
+
+			await openPunks.methods.mint(1).send({ from: account, value: 0 })
+				.on('confirmation', async () => {
+					const maxSupply = await openPunks.methods.maxSupply().call()
+					const totalSupply = await openPunks.methods.totalSupply().call()
+					setSupplyAvailable(maxSupply - totalSupply)
+
+					const ownerOf = await openPunks.methods.walletOfOwner(account).call()
+					setOwnerOf(ownerOf)
+					setTokensOwned(await openPunks.methods.walletOfOwner(account).call())
+				})
+				.on('error', (error) => {
+					window.alert(error)
+					setIsError(true)
+				})
+		}
+
+		setIsMinting(false)
+	}
+
+	const cycleImages = async () => {
+		const getRandomNumber = () => {
+			const counter = (Math.floor(Math.random() * 6000)) + 1
+			setCounter(counter)
+		}
+
+		if (!isCycling) { setInterval(getRandomNumber, 3000) }
+		setIsCycling(true)
+	}
+
+	const getMetaData = async () => {
+		axios.get("https://aliensnft.mypinata.cloud/ipfs/QmUHKPcBnzW6gpyGXxr5PRyyUfNWdDLisydiy2Bdcs8pNr").then(res =>
+		{
+			console.log(JSON.stringify(res.data), "SLKDJFKLSDFJSDKLFJKSLDFJ HELLO")
+		})
+		
+	}
+
+	const getOwnerTokenIds = async () => {
+
+		if(openPunks && account){
+			const ownerOf = await openPunks.methods.walletOfOwner(account).call()
+			//build tokenURI string
+			setTokensOwned(ownerOf)
+		}
+	}
+
+	useEffect(() => {
+		loadWeb3()
+		cycleImages()
+		// getMetaData()
+		getOwnerTokenIds()
+		// console.log(tokensOwned)
+	}, [account]);
+
+
+	const scrollRef = useHorizontalScroll();
+	const scrollRefTwo = useHorizontalScroll();
+
+	const handleNFTClick = (e, tokenId) => {
+        e.preventDefault();
+		// console.log(parseInt(tokenId))
+        setNftTokenId(parseInt(tokenId));
+    }
+
+
+	return (
+		<div>
+			<main>
+				<section id='welcome' className='welcome'>
+
+					<Row className='header my-3 p-3 mb-0 pb-0'>
+						<Col xs={12} md={12} lg={8} xxl={8}>
+							<h1>Angry Aliens</h1>
+							<p className='sub-header'>Availble on 03 / 10 / 22</p>
+						</Col>
+						<Col className='flex social-icons'>
+							<a
+								href="https://twitter.com/DappUniversity"
+								target='_blank'
+								className='circle flex button'>
+								<img src={twitter} alt="Twitter" />
+							</a>
+							<a
+								href="#"
+								target='_blank'
+								className='circle flex button'>
+								<img src={instagram} alt="Instagram" />
+							</a>
+							<a
+								href={`${openseaURL}/collection/${config.PROJECT_NAME}`}
+								target='_blank'
+								className='circle flex button'>
+								<img src={opensea} alt="Opensea" />
+							</a>
+						</Col>
+					</Row>
+
+					<Row className='flex m-3'>
+						<Col md={5} lg={4} xl={5} xxl={4} className='text-center'>
+							<img
+								src={`https://aliensnft.mypinata.cloud/ipfs/Qmcrwm55jLALriGzhGopo6tiZRGWekmdhmg2f41kJV4ag4/${counter}.png`}
+								alt="Crypto Punk"
+								className='showcase'
+							/>
+						</Col>
+						<Col md={5} lg={4} xl={5} xxl={4}>
+							{revealTime !== 0 && <Countdown date={currentTime + (revealTime - currentTime)} className='countdown mx-3' />}
+							<p className='text'>
+								By attending the masterclass, you'll learn how to generate NFT images, upload to IPFS, create your NFT contract, and use OpenSea!
+							</p>
+							<a href="#about" className='button mx-3'>Learn More!</a>
+						</Col>
+					</Row>
+
+				</section>
+				<section id='about' className='about'>
+
+					<Row className='flex m-3'>
+						<h2 className='text-center p-3'>About the Collection</h2>
+						<Col md={5} lg={4} xl={5} xxl={4} className='text-center'>
+							<img src={showcase} alt="Multiple Crypto Punks" className='showcase' />
+						</Col>
+						<Col md={5} lg={4} xl={5} xxl={4}>
+							{isError ? (
+								<p>{message}</p>
+							) : (
+								<div>
+									<h3>Mint your NFT in</h3>
+									{revealTime !== 0 && <Countdown date={currentTime + (revealTime - currentTime)} className='countdown' />}
+									<ul>
+										<li>1,000 generated punked out images using an art generator</li>
+										<li>Free minting on Rinkeby testnet</li>
+										<li>Viewable on Opensea shortly after minting</li>
+									</ul>
+
+									{isMinting ? (
+										<Spinner animation="border" className='p-3 m-2' />
+									) : (
+										<button onClick={mintNFTHandler} className='button mint-button mt-3'>Mint</button>
+									)}
+
+									{ownerOf.length > 0 &&
+										<p><small>View your NFT on
+											<a
+												href={`${openseaURL}/assets/${openPunks._address}/${ownerOf[0]}`}
+												target='_blank'
+												style={{ display: 'inline-block', marginLeft: '3px' }}>
+												OpenSea
+											</a>
+										</small></p>}
+								</div>
+							)}
+						</Col>
+					</Row>
+
+					<Row style={{ marginTop: "100px" }}>
+						<Col>
+							{openPunks &&
+								<a
+									href={`${explorerURL}/address/${openPunks._address}`}
+									target='_blank'
+									className='text-center'>
+									{openPunks._address}
+								</a>
+							}
+						</Col>
+					</Row>
+
+				</section>
+				<section id='about' className='about'>
+				
+					
+					<Row style={{ justifyContent: "center", alignItems: "center", marginTop: "100px" }}>
+						<h2 style={{ textAlign: "center"}}>NFTS YOU OWN</h2>
+						<Col ref={scrollRef} className="nfts">
+							{tokensOwned &&
+								tokensOwned.map((token, id) => {
+									return <div onClick={(e) => handleNFTClick(e, token)}>
+										<NFTDetails tokenId={token} imgURL={tokenImageURI} address={account} />
+									</div>
+								})
+								
+							}
+						</Col>
+					</Row>
+					<Row className='flex m-3'>
+						<Col md={5} lg={4} xl={5} xxl={4} style={{ display: "flex", justifyContent: "center", alignItems: "center"}}>
+							{isError ? (
+								<p>{message}</p>
+							) : (
+								<div>
+
+
+									{isMinting ? (
+										<Spinner animation="border" className='p-3 m-2' />
+									) : (
+										<>
+										
+											{ lockApproved && <h2 value={nftTokenId} onChange={handleChange}>Token ID: {nftTokenId} Selected</h2> }
+											{ !lockApproved ?
+											 <button style={{marginLeft: "20px"}} onClick={approveToLockContract} className='button mint-button mt-3'>Approve</button>
+											: <button style={{marginLeft: "20px"}}  onClick={transferToContract} className='button mint-button mt-3'>Transfer To Contract</button>
+											}
+											<button style={{marginLeft: "20px"}} onClick={transferBackFromLock} className='button mint-button mt-3'>Withdraw NFT</button>
+										</>
+									)}
+
+								</div>
+							)}
+						</Col>
+					</Row>
+					<Row style={{ justifyContent: "center", alignItems: "center", marginTop: "100px" }}>
+						<h2 style={{ textAlign: "center"}}>NFTS READY FOR BATTLE</h2>
+						<Col ref={scrollRefTwo} className="nfts">
+							{lockOwned != 0 &&
+								lockOwned.map(token => {
+									return <div onClick={(e) => handleNFTClick(e, token)}>
+										<NFTDetails tokenId={token} imgURL={tokenImageURI} address={alienLock._address} />
+									</div>
+								})
+								
+							}
+						</Col>
+					</Row>
+
+					<Row style={{textAlign: "center"}}>
+						<h1>BATTLE AREANA</h1>
+					</Row>
+
+					{areanas && alienLock ? areanas.map(areana => {
+						console.log(areanas)
+						console.log(areana.nftTokenIdOne)
+						return areana ? <><Row style={{textAlign: "center", marginTop: "100px", marginBottom: "300px"}}>
+							<Col>
+								{areana.nftTokenIdOne !== 0 ? <NFTDetails tokenId={areana.nftTokenIdOne} imgURL={tokenImageURI} address={alienLock._address} /> : <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>}
+							</Col>
+							{areana.nftTokenIdOne !== 0 && areana.nftTokenIdTwo !== 0 && <Col style={{display: "flex", justifyContent: "center", alignItems: "center", marginTop: "100px", marginBottom: "300px"}}><button onClick={handleFight(areana.areanaId)} className='button mint-button mt-3'>Fight</button></Col>}
+							<Col>
+								{areana.nftTokenIdTwo !== 0 ? <NFTDetails tokenId={areana.nftTokenIdTwo} imgURL={tokenImageURI} address={alienLock._address} /> : <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>}
+							</Col>
+							</Row>
+							</>
+
+							
+						 : <div>no data</div>
+					}) : <div>no data</div>}
+					
+
+					<Row style={{ marginTop: "100px" }}>
+						<Col>
+							{openPunks &&
+								<a
+									href={`${explorerURL}/address/${openPunks._address}`}
+									target='_blank'
+									className='text-center'>
+									{openPunks && openPunks._address}
+								</a>
+							}
+						</Col>
+						<Col>
+							{alienLock && 
+								<a
+									href={`${explorerURL}/address/${alienLock._address}`}	
+									target='_blank'
+									className="text-center">
+										AlienLockAddr: {alienLock._address}
+										{/* 0xacbB594D230672155235b6414162c0aa33967C4c */}
+									</a>					
+							}
+						</Col>
+					</Row>
+					<Row style={{ marginTop: "100px" }}>
+						{alienLock && 
+							<button onClick={setAlienAddressToLock} className='button mint-button mt-3'>Set Alien Addr</button>
+
+						
+						}
+					</Row>
+
+				</section>
+				
+			</main>
+			<footer>
+
+			</footer>
+		</div>
+	)
+}
