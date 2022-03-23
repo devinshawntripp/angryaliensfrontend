@@ -26,7 +26,7 @@ export default function NFTDetails({tokenId, imgURL, address}) {
     useEffect(() => {
 
         const getNfts = async () => {
-            axios.get(`http://localhost:8174/api/nft/${tokenId}`).then((res) => {
+            axios.get(`${process.env.REACT_APP_URL}/api/nft/${tokenId}`).then((res) => {
                 setNftData(res.data)
             })
         }
