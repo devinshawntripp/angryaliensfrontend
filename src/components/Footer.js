@@ -28,20 +28,20 @@ export default function Footer() {
             <section id='welcome' className='footer'>
                 <Row className='p-3 mb-0 pb-0'>
                     <Col xs={12} md={12} lg={8} xxl={8}>
-                        About Us
+                        <a href="https://app.gitbook.com/s/0SyDyf0nWBtn4D7AlTXp/">About Us</a>
                     </Col>
                 </Row>
                 <Row className='p-3 mb-0 pb-0'>
-                    <Col xs={12} md={12} lg={8} xxl={8}>
-                        Contact Us
-                    </Col>
+                    {/* <Col xs={12} md={12} lg={8} xxl={8}>
+                        <a href="">Contact Us</a>
+                    </Col> */}
                     <Col className='mt-3 mb-0 pb-0' xs={12} md={12} lg={8} xxl={8}>
-                        Docs
+                        <a target="_blank" href="https://app.gitbook.com/s/0SyDyf0nWBtn4D7AlTXp/">Docs</a>
                     </Col>
                 
                     <Col className='flex social-icons'>
                         <a
-                            href="https://twitter.com/DappUniversity"
+                            href="https://twitter.com/AngryAliensproj"
                             target='_blank'
                             className='circle flex button'>
                             <img src={twitter} alt="Twitter" />
