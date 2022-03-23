@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux'
 import twitter from '../images/socials/twitter.svg'
 import instagram from '../images/socials/instagram.svg'
 import opensea from '../images/socials/opensea.svg'
+import discord from '../images/socials/discord-icon.svg'
 import showcase from '../images/showcase.jpg'
 import '../App.css'
 
@@ -56,6 +57,12 @@ export default function Footer() {
                             target='_blank'
                             className='circle flex button'>
                             <img src={opensea} alt="Opensea" />
+                        </a>
+                        <a
+                            href={`https://discord.gg/muybTfQR`}
+                            target='_blank'
+                            className='circle flex button'>
+                            <img src={discord} alt="Discord" />
                         </a>
                     </Col>
                 </Row>

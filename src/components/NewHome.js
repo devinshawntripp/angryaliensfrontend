@@ -144,7 +144,7 @@ export default function NewHome() {
                             <Col md={5} lg={4} xl={5} xxl={4}>
                                 {app.revealTime !== 0 && <Countdown date={currentTime + (app.revealTime - currentTime)} className='countdown mx-3' />}
                                 <p className='text'>
-                                    By attending the masterclass, you'll learn how to generate NFT images, upload to IPFS, create your NFT contract, and use OpenSea!
+                                    Angry Aliens is a project with multiple utilities that will be mostly community directed. That is all soley coded by yours truly -MOJE BAKE SAKETORO
                                 </p>
                                 <a href="#about" className='button mx-3'>Learn More!</a>
                             </Col>
@@ -165,9 +165,9 @@ export default function NewHome() {
                                         <h3>Mint your NFT in</h3>
                                         {app.revealTime !== 0 && <Countdown date={currentTime + (app.revealTime - currentTime)} className='countdown' />}
                                         <ul>
-                                            <li>1,000 generated punked out images using an art generator</li>
-                                            <li>Free minting on Rinkeby testnet</li>
-                                            <li>Viewable on Opensea shortly after minting</li>
+                                            <li>10,000 generated images using an art generator</li>
+                                            <li>Free minting on Rinkeby testnet/ Actual chain tbd by community vote most likely cronos</li>
+                                            <li>Viewable on Opensea/Ebuisbay shortly after minting</li>
                                         </ul>
 
                                         {isMinting ? (

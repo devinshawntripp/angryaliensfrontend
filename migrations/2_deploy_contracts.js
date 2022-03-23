@@ -9,17 +9,15 @@ const Context = artifacts.require("Context")
 const Address = artifacts.require("Address")
 const Ownable = artifacts.require("Ownable")
 const IterableMapping = artifacts.require("IterableMapping")
-const Router = artifacts.require("IUniswapV2Router02")
+
 
 module.exports = async function (deployer) {
 
-    const [admin,] = await web3.eth.getAccounts();
 
     const IPFS_IMAGE_METADATA_URI = `ipfs://${process.env.IPFS_IMAGE_METADATA_CID}/`
     const IPFS_HIDDEN_IMAGE_METADATA_URI = `ipfs://${process.env.IPFS_HIDDEN_IMAGE_METADATA_CID}/hidden.json`
     const NFT_MINT_DATE = new Date(process.env.NFT_MINT_DATE).getTime().toString().slice(0, 10)
 
-    const router = await Router.at("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
     const at = await AlienToken.at("0x79F45c8854247fc99ef7E842211605eB020aFb5b")
     console.log(at.uniswapV2Pair);
 
