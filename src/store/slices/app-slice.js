@@ -27,7 +27,8 @@ const initialState = {
     isError: false,
     isMinting: false,
     nodeManager: null,
-	alienToken: null
+	alienToken: null,
+    isApproved: false
 }
 
 

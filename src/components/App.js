@@ -70,6 +70,7 @@ function App() {
 			// setRevealTime((Number(timeDeployed) + Number(allowMintingAfter)).toString() + '000')
             var ownerOf = [];
             var lockOwned = [];
+			var isApproved = false;
 			if (_account) {
 				ownerOf = await angryAliensNFTS.methods.walletOfOwner(_account).call()
 				
@@ -91,18 +92,21 @@ function App() {
             // locksOwned: []
 
 			if(alienLock && _account){
+				isApproved = await angryAliensNFTS.methods.isApprovedForAll(app.address, alienLock._address).call()
 				lockOwned = await angryAliensNFTS.methods.walletOfOwner(alienLock._address).call();
+				console.log("Lock Owned App.js: ", lockOwned)
 			}
 
             dispatch(loadAppData({...app, 
                 angryAliens: angryAliensNFTS, 
-                alienLock: alienLock, 
+                alienLock: alienLock,
                 supplyAvailable: supplyAvail, 
                 revealTime: revealTime, 
                 tokensOwned: ownerOf, 
                 locksOwned: lockOwned,
 				nodeManager: nodeRewardMan,
-				alienToken: alienToken
+				alienToken: alienToken,
+				isApproved: isApproved
             }))
 
 		} catch (error) {

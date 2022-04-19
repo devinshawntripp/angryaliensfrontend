@@ -1,10 +1,11 @@
 import React, {useState, useEffect, useContext} from 'react'
 import {Row, Col} from 'react-bootstrap'
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useHorizontalScroll } from '../hooks/useSideScroll';
 import NFTDetails from '../components/NFTDetails';
 
 import { SocketContext } from '../contexts/socket';
+import { loadAppData } from '../store/slices/app-slice';
 
 
 
@@ -18,8 +19,14 @@ export default function Fight() {
     const [isError, setIsError] = useState(false)
     const [lockApproved, setLockApproved] = useState(false);
     const [nftTokenId, setNftTokenId] = useState(0);
+    const [counter, setCounter] = useState(0);
+    const [isCycling, setIsCycling] = useState(false);
+    const [timer, setTimer] = useState(30);
+    
 
-    const [areanas, setAreanas] = useState([{}]);
+    const [areanas, setAreanas] = useState([]);
+
+    const dispatch = useDispatch();
 
 
 
@@ -35,7 +42,7 @@ export default function Fight() {
 
     const socket = useContext(SocketContext)
 
-    const handleNFTClick = (e, tokenId) => {
+    const handleNFTClick = async (e, tokenId) => {
         e.preventDefault();
 		// console.log(parseInt(tokenId))
         setNftTokenId(parseInt(tokenId));
@@ -46,7 +53,8 @@ export default function Fight() {
 	}
 
 
-    const handleFight = async (areanaId) => {
+    const handleFight = async (e, areanaId) => {
+        e.preventDefault();
 		socket.emit('fight', areanaId)
 	}
 
@@ -56,6 +64,12 @@ export default function Fight() {
 				.on('confirmation', async () => {
 					const isApproved = await app.angryAliens.methods.isApprovedForAll(app.address, app.alienLock._address).call()
 					setLockApproved(isApproved);
+
+                    dispatch(loadAppData({...app, 
+                        isApproved: isApproved
+                    }))
+
+                    //need to set dispatch app wide for approved address
 				}).on('error', (error) => {
 					window.alert(error)
 					setIsError(true)
@@ -65,16 +79,21 @@ export default function Fight() {
 
 
     const putNftInAreana = async () => {
-		if(app.lockOwned && app.address){
-			if(!app.lockOwned.includes(nftTokenId.toString())){
+		if(app.locksOwned && app.address){
+			if(!app.locksOwned.includes(nftTokenId.toString())){
 				// console.log(lockOwned)
 				// console.log(nftTokenId)
 				window.alert("Nft is not in the lock contract")
 			} else {
-				const data = {areanaId: 1, tokenId: nftTokenId}
-				socket.emit('sendNftToAreana', (data))
+                var own = await app.alienLock.methods.getAddressOfTokenId(nftTokenId).call()
+                if(String(app.address).localeCompare(String(own)) != 0){
+                    window.alert("YOU DO NOT OWN THIS NFT")
+                } else {
+                    const data = {areanaId: 1, tokenId: nftTokenId, owner: own}
+                    socket.emit('sendNftToAreana', (data))
+                }
+				
 			}
-	
 		}
 		
 
@@ -94,11 +113,22 @@ export default function Fight() {
 					// setSupplyAvailable(maxSupply - totalSupply)
 
 					const ownerOf = await app.angryAliens.methods.walletOfOwner(app.address).call()
+                    var lockOwned = []
+        
+                    
+        
 					// setOwnerOf(ownerOf)
 					// setTokensOwned(await app.angryAliens.methods.walletOfOwner(account).call())
 					if(app.alienLock && app.address){
 						// setLockOwned(await app.angryAliens.methods.walletOfOwner(alienLock._address).call());
+                        lockOwned = await app.angryAliensNFTS.methods.walletOfOwner(app.alienLock._address).call();
 					}
+
+
+                    dispatch(loadAppData({...app, 
+                        tokensOwned: ownerOf, 
+                        locksOwned: lockOwned
+                    }))
 				})
 				.on('error', (error) => {
 					window.alert(error)
@@ -127,6 +157,72 @@ export default function Fight() {
 		}
 	}
 
+    // const getLockOwned = async () => {
+    //     console.log(app)
+    //     if(app.alienLock && app.address){
+    //         const isApproved = await app.angryAliensNFTS.methods.isApprovedForAll(app.address, app.alienLock._address).call()
+    //         const lockOwned = await app.angryAliensNFTS.methods.walletOfOwner(app.alienLock._address).call();
+    //         console.log("Lock Owned fight.js: ", lockOwned)
+    //     }
+    // }
+
+    // useEffect(() => {
+
+    //     getLockOwned();
+
+        
+
+    // }, [app.address, app.networkId, app.lockOwned, app.alienLock])
+
+    useEffect(() => {
+
+        
+
+		
+
+
+		const handlr = (data) => {
+			console.log(data)
+			setAreanas(data.areanas);
+		}
+
+		socket.on('areanas', handlr)
+
+	}, [socket])
+
+
+    useEffect(() => {
+        const handlr = (data) => {
+            console.log(data)
+            setTimer(data);
+            if(data === 0){
+                socket.emit('fight', 0)
+            }
+        }
+
+
+        socket.on('timerTick', handlr)
+
+
+    }, [])
+
+
+
+    const cycleImages = async () => {
+		const getRandomNumber = () => {
+			const counter = (Math.floor(Math.random() * 6000)) + 1
+			setCounter(counter)
+		}
+
+		if (!isCycling) { setInterval(getRandomNumber, 500) }
+		setIsCycling(true)
+	}
+
+    useEffect(() => {
+        
+        cycleImages()
+    }, [])
+
     return (
         <div>
             <main>
@@ -138,9 +234,9 @@ export default function Fight() {
                         <Col ref={scrollRef} className="nfts">
                             {app.tokensOwned &&
                                 app.tokensOwned.map((token, id) => {
-                                    // return <div onClick={(e) => handleNFTClick(e, token)}>
-                                        return <NFTDetails tokenId={token} imgURL={tokenImageURI} address={app.address} />
-                                    // </div>
+                                     return <div onClick={(e) => handleNFTClick(e, token)}>
+                                        <NFTDetails tokenId={token} imgURL={tokenImageURI} address={app.address} />
+                                     </div>
                                 })
                                 
                             }
@@ -159,8 +255,8 @@ export default function Fight() {
                                     ) : ( */}
                                         <>
                                         
-                                            { lockApproved && <h2 value={nftTokenId} onChange={handleChange}>Token ID: {nftTokenId} Selected</h2> }
-                                            { !lockApproved ?
+                                            { app.isApproved && <h2 value={nftTokenId} onChange={handleChange}>Token ID: {nftTokenId} Selected</h2> }
+                                            { !app.isApproved ?
                                             <button style={{marginLeft: "20px"}} onClick={approveToLockContract} className='button mint-button mt-3'>Approve</button>
                                             : <button style={{marginLeft: "20px"}}  onClick={transferToContract} className='button mint-button mt-3'>Transfer To Contract</button>
                                             }
@@ -175,8 +271,9 @@ export default function Fight() {
                     <Row style={{ justifyContent: "center", alignItems: "center", marginTop: "100px" }}>
                         <h2 style={{ textAlign: "center"}}>NFTS READY FOR BATTLE</h2>
                         <Col ref={scrollRefTwo} className="nfts">
-                            {app.lockOwned != 0 &&
-                                app.lockOwned.map(token => {
+                            {app.locksOwned && app.locksOwned.length !== 0 &&
+                                app.locksOwned.map(token => {
+                                    
                                     return <div onClick={(e) => handleNFTClick(e, token)}>
                                         <NFTDetails tokenId={token} imgURL={tokenImageURI} address={app.alienLock._address} />
                                     </div>
@@ -193,15 +290,43 @@ export default function Fight() {
                     {areanas && app.alienLock ? areanas.map(areana => {
                         console.log(areanas)
                         console.log(areana.nftTokenIdOne)
-                        return areana ? <><Row style={{textAlign: "center", marginTop: "100px", marginBottom: "300px"}}>
-                            <Col>
-                                {areana.nftTokenIdOne !== 0 ? <NFTDetails tokenId={areana.nftTokenIdOne} imgURL={tokenImageURI} address={app.alienLock._address} /> : <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>}
-                            </Col>
-                            {areana.nftTokenIdOne !== 0 && areana.nftTokenIdTwo !== 0 && <Col style={{display: "flex", justifyContent: "center", alignItems: "center", marginTop: "100px", marginBottom: "300px"}}><button onClick={handleFight(areana.areanaId)} className='button mint-button mt-3'>Fight</button></Col>}
-                            <Col>
-                                {areana.nftTokenIdTwo !== 0 ? <NFTDetails tokenId={areana.nftTokenIdTwo} imgURL={tokenImageURI} address={app.alienLock._address} /> : <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>}
-                            </Col>
-                            </Row>
+                        return areana ? 
+                            <>
+                                <Row style={{display: "flex", justifyContent: "center", alignItems: "center", textAlign: "center", marginTop: "100px", marginBottom: "300px"}}>
+                                    <Col>
+                                        {areana.nftTokenIdOne !== 0 ? 
+                                            <div style={{display: "flex", alignItems: "center", justifyContent: "center"}}>
+                                                <div style={{width: "fit-content"}}>
+                                                    <NFTDetails tokenId={areana.nftTokenIdOne} imgURL={tokenImageURI} address={app.alienLock._address} />
+                                                </div>
+                                            </div> 
+                                            : 
+                                            <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>
+                                        }
+                                    </Col>
+                                        {/* {areana.nftTokenIdOne !== 0 && areana.nftTokenIdTwo !== 0 && <Col style={{display: "flex", justifyContent: "center", alignItems: "center", marginTop: "100px", marginBottom: "300px"}}><button onClick={(e) => handleFight(e,areana.areanaId)} className='button mint-button mt-3'>Fight</button></Col>} */}
+
+                                        {areana.nftTokenIdOne !== 0 && <Col style={{display: "flex", justifyContent: "center", alignItems: "center", marginTop: "100px", marginBottom: "300px"}}>Fighting In: {timer}</Col>}
+                                    <Col>
+                                        
+                                         
+                                        {areana.nftTokenIdTwo !== 0 ? 
+                                        <div style={{display: "flex", alignItems: "center", justifyContent: "center"}}>
+                                            <div style={{width: "fit-content"}}>
+                                                <NFTDetails tokenId={areana.nftTokenIdTwo} imgURL={tokenImageURI} address={app.alienLock._address} />
+                                                </div>
+                                                </div> : String(app.address).localeCompare(String(areana.nftTokenOneOwner)) == 0 ? 
+                                                <img
+                                                    src={`https://aliensnft.mypinata.cloud/ipfs/Qmcrwm55jLALriGzhGopo6tiZRGWekmdhmg2f41kJV4ag4/${counter}.png`}
+                                                    alt="Angry Aliens"
+                                                    className='showcase'
+                                                /> 
+                                                
+                                                :
+
+                                                <button style={{marginLeft: "20px"}} onClick={putNftInAreana} className='button mint-button mt-3'>Select And Join</button>}
+                                    </Col>
+                                </Row>
                             </>
 
                             
